@@ -211,10 +211,9 @@ data "azurerm_log_analytics_workspace" "log_analytics_workspace" {
   resource_group_name = "p-aue-tf-analytics-rg"
 }
 
-data "azurerm_network_watcher" "networkwatcher" {
-  name = "NetworkWatcher_${local.location_short}"
-  provider = azurerm.production
-  resource_group_name = "NetworkWatcherRG"
+locals {
+  network_watcher_name = "NetworkWatcher_${local.location_short}"
+  network_watcher_resource_group = "NetworkWatcherRG"
 }
 
 #
@@ -466,9 +465,9 @@ resource "azurerm_network_security_group" "mgmt" {
 resource "azurerm_network_watcher_flow_log" "mgmt" {
   enabled                   = true
   network_security_group_id = azurerm_network_security_group.mgmt.id
-  network_watcher_name = data.azurerm_network_watcher.networkwatcher.id
-  resource_group_name  = "NetworkWatcherRG"
-  storage_account_id        = module.storage.id
+  network_watcher_name = local.network_watcher_name
+  provider = azurerm.production
+  resource_group_name = local.network_watcher_resource_group
 
   retention_policy {
     enabled = true
@@ -545,9 +544,9 @@ resource "azurerm_network_security_group" "dmz" {
 resource "azurerm_network_watcher_flow_log" "dmz" {
   enabled                   = true
   network_security_group_id = azurerm_network_security_group.dmz.id
-  network_watcher_name = data.azurerm_network_watcher.networkwatcher.id
-  resource_group_name  = "NetworkWatcherRG"
-  storage_account_id        = module.storage.id
+  network_watcher_name = local.network_watcher_name
+  provider = azurerm.production
+  resource_group_name = local.network_watcher_resource_group
 
   retention_policy {
     enabled = true
