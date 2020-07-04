@@ -271,22 +271,21 @@ resource "azurerm_key_vault" "keys" {
 # Storage account for flow logs
 #
 
-module "storage" {
-  enable_advanced_threat_protection = true
-  location            = azurerm_resource_group.rg.location
-  name                = "${local.name_prefix_tf}"
-  resource_group_name = "${local.name_prefix_tf}-rg-storage"
-  source  = "avinor/storage-account/azurerm"
-  version = "2.2.0"
-
-  # TODO Not yet supported to use service endpoints together with flow logs. Not a trusted Microsoft service
-  # See https://github.com/MicrosoftDocs/azure-docs/issues/5989
-  # network_rules {
-  #   ip_rules                   = ["127.0.0.1"]
-  #   virtual_network_subnet_ids = ["${azurerm_subnet.firewall.id}"]
-  # }
-
+resource "azurerm_storage_account" "storage" {
+  access_tier               = "Hot"
+  account_kind              = "StorageV2"
+  account_replication_type  = "LRS"
+  account_tier              = "Standard"
+  enable_https_traffic_only = true
+  location                  = var.location
+  name                      = lower(replace("${local.name_prefix_tf}st", "/[[:^alnum:]]/", ""))
+  resource_group_name       = azurerm_resource_group.rg.name
   tags = merge( local.common_tags, local.extra_tags, var.tags )
+}
+
+resource "azurerm_advanced_threat_protection" "threat_protection" {
+  enabled            = true
+  target_resource_id = azurerm_storage_account.storage.id
 }
 
 #
@@ -463,11 +462,12 @@ resource "azurerm_network_security_group" "mgmt" {
 }
 
 resource "azurerm_network_watcher_flow_log" "mgmt" {
-  enabled                   = true
+  enabled = true
   network_security_group_id = azurerm_network_security_group.mgmt.id
   network_watcher_name = local.network_watcher_name
   provider = azurerm.production
   resource_group_name = local.network_watcher_resource_group
+  storage_account_id = azurerm_storage_account.storage.id
 
   retention_policy {
     enabled = true
@@ -547,6 +547,7 @@ resource "azurerm_network_watcher_flow_log" "dmz" {
   network_watcher_name = local.network_watcher_name
   provider = azurerm.production
   resource_group_name = local.network_watcher_resource_group
+  storage_account_id        = azurerm_storage_account.storage.id
 
   retention_policy {
     enabled = true
