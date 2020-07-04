@@ -223,7 +223,7 @@ data "azurerm_network_watcher" "networkwatcher" {
 
 resource "azurerm_resource_group" "rg" {
   location = var.location
-  name = "${local.name_prefix_tf}-rg-${var.category}"
+  name = "${local.name_prefix_tf}-rg"
 
   tags = merge( local.common_tags, local.extra_tags, var.tags )
 }
@@ -276,7 +276,7 @@ module "storage" {
   enable_advanced_threat_protection = true
   location            = azurerm_resource_group.rg.location
   name                = "${local.name_prefix_tf}"
-  resource_group_name = "${local.name_prefix_tf}-rg-${var.category}-storage"
+  resource_group_name = "${local.name_prefix_tf}-rg-storage"
   source  = "avinor/storage-account/azurerm"
   version = "2.2.0"
 
@@ -368,7 +368,7 @@ resource "azurerm_monitor_diagnostic_setting" "vnet" {
 
 resource "azurerm_subnet" "firewall" {
   address_prefixes = [ cidrsubnet(var.address_space, 2, 0) ]
-  name = "AzureFirewallSubnet" #"${local.name_prefix_tf}-sn-firewall"
+  name = "AzureFirewallSubnet" # Must be named like this
   resource_group_name = azurerm_resource_group.rg.name
   service_endpoints = var.service_endpoints
   virtual_network_name = azurerm_virtual_network.vnet.name
@@ -380,7 +380,7 @@ resource "azurerm_subnet" "firewall" {
 
 resource "azurerm_subnet" "gateway" {
   address_prefixes = [ cidrsubnet(var.address_space, 2, 1) ]
-  name = "GatewaySubnet"
+  name = "GatewaySubnet" # Must be named like this
   resource_group_name = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.vnet.name
 
