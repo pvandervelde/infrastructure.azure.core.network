@@ -141,21 +141,6 @@ locals {
   merged_dmz_nsg_rules = flatten([
     for nsg in var.dmz_nsg_rules : merge(local.default_nsg_rule, nsg)
   ])
-
-  nat_rules = { for idx, rule in var.firewall_nat_rules : rule.name => {
-    idx : idx,
-    rule : rule,
-  } }
-
-  network_rules = { for idx, rule in var.firewall_network_rules : rule.name => {
-    idx : idx,
-    rule : rule,
-  } }
-
-  application_rules = { for idx, rule in var.firewall_application_rules : rule.name => {
-    idx : idx,
-    rule : rule,
-  } }
 }
 
 # Diagnostics
@@ -289,19 +274,6 @@ resource "azurerm_advanced_threat_protection" "threat_protection" {
 }
 
 #
-# DDos protection plan
-#
-
-resource "azurerm_network_ddos_protection_plan" "ddos_protection" {
-  count = var.create_ddos_plan ? 1 : 0
-  location = var.location
-  name  = "{local.name_prefix_tf}-ddos"
-  resource_group_name = azurerm_resource_group.rg.name
-
-  tags = merge( local.common_tags, local.extra_tags, var.tags )
-}
-
-#
 # Hub network with subnets
 #
 
@@ -312,15 +284,6 @@ resource "azurerm_virtual_network" "vnet" {
   resource_group_name = azurerm_resource_group.rg.name
 
   tags = merge( local.common_tags, local.extra_tags, var.tags )
-
-  dynamic "ddos_protection_plan" {
-    for_each = var.create_ddos_plan ? [true] : []
-    iterator = ddos
-    content {
-      id     = azurerm_network_ddos_protection_plan.ddos_protection.id
-      enable = true
-    }
-  }
 }
 
 # Set the user principals who are allowed to peer vnets
@@ -368,7 +331,6 @@ resource "azurerm_subnet" "firewall" {
   address_prefixes = [ cidrsubnet(var.address_space, 2, 0) ]
   name = "AzureFirewallSubnet" # Must be named like this
   resource_group_name = azurerm_resource_group.rg.name
-  service_endpoints = var.service_endpoints
   virtual_network_name = azurerm_virtual_network.vnet.name
 }
 
@@ -427,15 +389,6 @@ resource "azurerm_route_table" "out" {
   resource_group_name = azurerm_resource_group.rg.name
 
   tags = merge( local.common_tags, local.extra_tags, var.tags )
-}
-
-resource "azurerm_route" "fw" {
-  address_prefix = "0.0.0.0/0"
-  name = "${local.name_prefix_tf}-r-firewall"
-  next_hop_in_ip_address = azurerm_firewall.fw.ip_configuration.0.private_ip_address
-  next_hop_type = "VirtualAppliance"
-  resource_group_name = azurerm_resource_group.rg.name
-  route_table_name = azurerm_route_table.out.name
 }
 
 resource "azurerm_subnet_route_table_association" "mgmt" {
@@ -638,168 +591,4 @@ resource "azurerm_role_assignment" "dns" {
   principal_id = var.peering_assignment[count.index]
   role_definition_name = "Private DNS Zone Contributor"
   scope = azurerm_private_dns_zone.main[0].id
-}
-
-#
-# Firewall
-#
-
-resource "azurerm_public_ip_prefix" "fw" {
-  location = azurerm_resource_group.rg.location
-  name = "${local.name_prefix_tf}-pippre"
-  prefix_length = var.public_ip_prefix_length
-  resource_group_name = azurerm_resource_group.rg.name
-  tags = merge( local.common_tags, local.extra_tags, var.tags )
-}
-
-resource "random_string" "dns" {
-  length = 6
-  special = false
-  upper = false
-}
-
-resource "azurerm_public_ip" "fw" {
-  allocation_method = "Static"
-  domain_name_label = format("%s%sfw%s", lower(replace(var.category, "/[[:^alnum:]]/", "")), lower(replace(var.public_ip_name, "/[[:^alnum:]]/", "")), random_string.dns.result)
-  location = azurerm_resource_group.rg.location
-  name = "${local.name_prefix_tf}-pip-fw"
-  public_ip_prefix_id = azurerm_public_ip_prefix.fw.id
-  resource_group_name = azurerm_resource_group.rg.name
-  sku = "Standard"
-  tags = merge( local.common_tags, local.extra_tags, var.tags )
-}
-
-resource "azurerm_monitor_diagnostic_setting" "fw_pip" {
-  log_analytics_workspace_id     = data.azurerm_log_analytics_workspace.log_analytics_workspace.id
-  name                           = "${local.name_prefix_tf}-mds-fw-pip"
-  target_resource_id             = azurerm_public_ip.fw.id
-
-  dynamic "log" {
-    for_each = setintersection(local.parsed_diag.log, local.diag_pip_logs)
-    content {
-      category = log.value
-
-      retention_policy {
-        enabled = false
-      }
-    }
-  }
-
-  dynamic "metric" {
-    for_each = setintersection(local.parsed_diag.metric, local.diag_pip_metrics)
-    content {
-      category = metric.value
-
-      retention_policy {
-        enabled = false
-      }
-    }
-  }
-}
-
-resource "azurerm_firewall" "fw" {
-  location = azurerm_resource_group.rg.location
-  name = "${local.name_prefix_tf}-fw"
-  resource_group_name = azurerm_resource_group.rg.name
-  zones = var.firewall_zones
-
-  ip_configuration {
-    name = var.public_ip_name
-    subnet_id = azurerm_subnet.firewall.id
-    public_ip_address_id = azurerm_public_ip.fw.id
-  }
-
-  # Avoid changes when adding more public ips manually to firewall
-  lifecycle {
-    ignore_changes = [
-      ip_configuration,
-    ]
-  }
-
-  tags = merge( local.common_tags, local.extra_tags, var.tags )
-}
-
-resource "azurerm_monitor_diagnostic_setting" "fw" {
-  count                          = 1
-  log_analytics_workspace_id     = data.azurerm_log_analytics_workspace.log_analytics_workspace.id
-  name                           = "${local.name_prefix_tf}-mds-fw"
-  target_resource_id             = azurerm_firewall.fw.id
-
-  dynamic "log" {
-    for_each = setintersection(local.parsed_diag.log, local.diag_fw_logs)
-    content {
-      category = log.value
-
-      retention_policy {
-        enabled = false
-      }
-    }
-  }
-
-  dynamic "metric" {
-    for_each = setintersection(local.parsed_diag.metric, local.diag_fw_metrics)
-    content {
-      category = metric.value
-
-      retention_policy {
-        enabled = false
-      }
-    }
-  }
-}
-
-resource "azurerm_firewall_application_rule_collection" "fw" {
-  action = each.value.rule.action
-  azure_firewall_name = azurerm_firewall.fw.name
-  for_each = local.application_rules
-  name = "${local.name_prefix_tf}-fwappr-${each.key}"
-  priority = 100 * (each.value.idx + 1)
-  resource_group_name = azurerm_resource_group.rg.name
-
-  rule {
-    name = each.key
-    source_addresses = each.value.rule.source_addresses
-    target_fqdns = each.value.rule.target_fqdns
-
-    protocol {
-      type = each.value.rule.protocol.type
-      port = each.value.rule.protocol.port
-    }
-  }
-}
-
-resource "azurerm_firewall_network_rule_collection" "fw" {
-  action = each.value.rule.action
-  azure_firewall_name = azurerm_firewall.fw.name
-  for_each = local.network_rules
-  name = "${local.name_prefix_tf}-fwnwr-${each.key}"
-  priority = 100 * (each.value.idx + 1)
-  resource_group_name = azurerm_resource_group.rg.name
-
-  rule {
-    name = each.key
-    source_addresses = each.value.rule.source_addresses
-    destination_ports = each.value.rule.destination_ports
-    destination_addresses = [for dest in each.value.rule.destination_addresses : contains(var.public_ip_name, dest) ? azurerm_public_ip.fw[dest].ip_address : dest]
-    protocols = each.value.rule.protocols
-  }
-}
-
-resource "azurerm_firewall_nat_rule_collection" "fw" {
-  action = each.value.rule.action
-  azure_firewall_name = azurerm_firewall.fw.name
-  for_each = local.nat_rules
-  name = "${local.name_prefix_tf}-fwnatr-${each.key}"
-  priority = 100 * (each.value.idx + 1)
-  resource_group_name = azurerm_resource_group.rg.name
-
-  rule {
-    name = each.key
-    source_addresses = each.value.rule.source_addresses
-    destination_ports = each.value.rule.destination_ports
-    destination_addresses = [for dest in each.value.rule.destination_addresses : contains(var.public_ip_name, dest) ? azurerm_public_ip.fw[dest].ip_address : dest]
-    protocols = each.value.rule.protocols
-    translated_address = each.value.rule.translated_address
-    translated_port = each.value.rule.translated_port
-  }
 }
