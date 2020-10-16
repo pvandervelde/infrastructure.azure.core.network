@@ -399,6 +399,8 @@ resource "azurerm_subnet" "gateway" {
   virtual_network_name = azurerm_virtual_network.vnet.name
 
   service_endpoints = [
+    "Microsoft.ContainerRegistry",
+    "Microsoft.KeyVault",
     "Microsoft.Storage",
   ]
 }
@@ -414,6 +416,8 @@ resource "azurerm_subnet" "mgmt" {
   virtual_network_name = azurerm_virtual_network.vnet.name
 
   service_endpoints = [
+    "Microsoft.ContainerRegistry",
+    "Microsoft.KeyVault",
     "Microsoft.Storage",
   ]
 }
@@ -429,6 +433,8 @@ resource "azurerm_subnet" "dmz" {
   virtual_network_name = azurerm_virtual_network.vnet.name
 
   service_endpoints = [
+    "Microsoft.ContainerRegistry",
+    "Microsoft.KeyVault",
     "Microsoft.Storage",
   ]
 }
