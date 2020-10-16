@@ -298,11 +298,6 @@ resource "azurerm_key_vault" "keys" {
     ]
   }
 
-  network_acls {
-    default_action = "Deny"
-    bypass         = "AzureServices"
-  }
-
   tags = merge( local.common_tags, local.extra_tags, var.tags )
 }
 
