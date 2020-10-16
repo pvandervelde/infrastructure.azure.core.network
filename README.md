@@ -4,34 +4,42 @@ The `infrastructure.azure.core.network.hub` repository stores the resource confi
 [Terraform](https://www.terraform.io/) to deploy a
 [resource group](https://docs.microsoft.com/en-us/azure/azure-resource-manager/management/overview#terminology) containing the hub part of a hub-and-spoke network using the [Microsoft recommended Hub-Spoke network topology](https://docs.microsoft.com/en-us/azure/architecture/reference-architectures/hybrid-networking/hub-spoke) to an Azure subscription.
 
+The Terraform code in this repository is based on the [Hub repository](https://github.com/avinor/terraform-azurerm-virtual-network-hub)
+by [avinor](https://github.com/avinor)
+
 The Terraform configuration creates the following group of resources:
 
 ![Resources created](./doc/resources.png)
 
-* One resource group to contain all the resources
-* A [key vault]()
-* A [storage account]()
-* The [virtual network]()
-* Diagnostics for the vnet
-* [Role assignment]() - To alow users to connect a Spoke network to peer with the Hub network.
-* Subnets
-  * Firewall - `AzureFirewallSubnet`
-  * Gateway - `GatewaySubnet`
-  * Management - `<PREFIX>-sn-management`
-  * DMZ - `<PREFIX>-sn-dmz`
-* Route table
-  * Route table association to subnet management
-  * Route table association to subnet dmz
-* Network security groups
-  * For subnet management
-  * For subnet dmz
-* Network watcher logs
-  * For subnet management
-  * For subnet dmz
-* Azure monitor diagnostics
-  * For subnet management
-  * For subnet dmz
-* Private DNS for the hub
+* One resource group to contain all the resources.
+* A [key vault](https://docs.microsoft.com/en-us/azure/key-vault/general/overview).
+* A [storage account](https://docs.microsoft.com/en-us/azure/storage/common/storage-account-overview)
+  to store the flow logs created by the
+  [Network Watcher](https://docs.microsoft.com/en-us/azure/network-watcher/network-watcher-monitoring-overview).
+* The [virtual network](https://docs.microsoft.com/en-us/azure/virtual-network/virtual-networks-overview)
+  for the hub.
+* Role assignments that alow users to connect a Spoke network to peer with the Hub network.
+* Several subnet instances for:
+  * The Firewall - Named: `AzureFirewallSubnet`
+  * The VPN Gateway - Named: `GatewaySubnet`
+  * A Management area - Named: `<PREFIX>-sn-management`
+  * A DMZ area - Named: `<PREFIX>-sn-dmz`
+* [Route table](https://docs.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview) and associated entries to:
+  * The management subnet
+  * The DMZ subnet
+* [Network security groups](https://docs.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview)
+  for:
+  * The management subnet
+  * The DMZ subnet
+* [Network Watcher](https://docs.microsoft.com/en-us/azure/network-watcher/network-watcher-monitoring-overview) logs for:
+  * The management subnet
+  * The DMZ subnet
+* Azure monitor diagnostics settings for:
+  * The management subnet
+  * The DMZ subnet
+* [Private DNS](https://docs.microsoft.com/en-us/azure/dns/private-dns-overview)
+  that allows resources in the hub network and peered spoke networks to resolve
+  internal IP addresses.
 
 Most resources are named after the type of resource they are, e.g. `-rg` for the resource group, prefixed with a standard prefix. The prefix consists of
 a combination of the Environment, e.g. Production, the Azure location,
@@ -72,11 +80,6 @@ Additional tags can be added by setting the `tags` variable as defined in the `v
 * **subscription_production** - The subscription ID of the production subscription. Used to find the log analytics resources.
 * **subscription_test** - The subscription ID of the test subscription.
 * **tags** - Tags to apply to all resources created.
-
-
-### Setting up additional Network Security rules
-
-FOR DMZ AND MANAGEMENT
 
 ## Use
 
