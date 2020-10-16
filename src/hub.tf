@@ -10,7 +10,7 @@ provider "azurerm" {
 
   subscription_id = var.subscription_production
 
-  version = "~>2.12.0"
+  version = "~>2.18.0"
 }
 
 provider "azurerm" {
@@ -20,7 +20,7 @@ provider "azurerm" {
 
     subscription_id = var.environment == "production" ? var.subscription_production : var.subscription_test
 
-    version = "~>2.12.0"
+    version = "~>2.18.0"
 }
 
 
